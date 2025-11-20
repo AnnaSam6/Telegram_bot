@@ -34,6 +34,9 @@ class MessageTracker:
     def __init__(self):
         self.processed_updates = set()
         self.lock = threading.Lock()
+        # ДОБАВЛЯЕМ ЗАЩИТУ ОТ ДУБЛЕЙ
+        self.last_update_time = {}
+        self.message_cooldown = 2  # секунды между сообщениями одного пользователя
     
     def is_processed(self, update_id):
         with self.lock:
@@ -45,6 +48,16 @@ class MessageTracker:
             # Очищаем старые ID чтобы не копить слишком много
             if len(self.processed_updates) > 1000:
                 self.processed_updates = set(list(self.processed_updates)[-500:])
+    
+    # ДОБАВЛЯЕМ ФУНКЦИЮ ДЛЯ ЗАЩИТЫ ОТ ДУБЛЕЙ
+    def can_process_user(self, user_id):
+        current_time = time.time()
+        with self.lock:
+            if user_id in self.last_update_time:
+                if current_time - self.last_update_time[user_id] < self.message_cooldown:
+                    return False
+            self.last_update_time[user_id] = current_time
+            return True
 
 message_tracker = MessageTracker()
 
@@ -427,6 +440,17 @@ def process_update(bot, update):
     # Добавляем задержку для защиты от дублирования
     time.sleep(0.1)
     
+    # ДОБАВЛЯЕМ ЗАЩИТУ ОТ ДУБЛЕЙ ПОЛЬЗОВАТЕЛЕЙ
+    user_id = None
+    if "message" in update:
+        user_id = update["message"]["from"]["id"]
+    elif "callback_query" in update:
+        user_id = update["callback_query"]["from"]["id"]
+    
+    if user_id and not message_tracker.can_process_user(user_id):
+        print(f"⏩ Пропущено быстрое сообщение от пользователя {user_id} (защита от дублей)")
+        return
+    
     update_id = update.get("update_id")
     
     # Проверяем не обрабатывали ли уже этот update
@@ -576,4 +600,3 @@ if __name__ == "__main__":
             print(f"❌ Ошибка в основном цикле: {e}")
             error_count += 1
             time.sleep(5)
-
