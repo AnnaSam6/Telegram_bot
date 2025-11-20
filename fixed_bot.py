@@ -102,21 +102,31 @@ class FixedEnglishBot:
         }
         return keyboard
     
+    def create_main_menu(self):
+        keyboard = {
+            "keyboard": [
+                ["🎓 Учить слова", "📊 Статистика"],
+                ["➕ Добавить слово", "❓ Помощь"]
+            ],
+            "resize_keyboard": True,
+            "one_time_keyboard": False
+        }
+        return keyboard
+    
     def handle_start(self, chat_id, user_id):
         welcome_text = """
 🤖 <b>Добро пожаловать в MyEnglishBot!</b>
 
 Я помогу вам учить английские слова!
 
-<b>Доступные команды:</b>
-/start - начать работу
-/learn - начать обучение
-/add_word - добавить новое слово
-/stats - посмотреть статистику
-
-Нажмите /learn чтобы начать!
+<b>Используйте кнопки ниже для быстрого доступа:</b>
+🎓 Учить слова - начать обучение
+📊 Статистика - посмотреть прогресс
+➕ Добавить слово - добавить новое слово
+❓ Помощь - справка по боту
         """
-        self.send_message(chat_id, welcome_text)
+        menu = self.create_main_menu()
+        self.send_message(chat_id, welcome_text, menu)
         
         user_id_str = str(user_id)
         if user_id_str not in self.data["user_stats"]:
@@ -171,6 +181,8 @@ class FixedEnglishBot:
 
 Например:
 <code>яблоко - apple</code>
+
+После добавления слова вернутся кнопки меню.
         """
         self.send_message(chat_id, message)
     
@@ -215,6 +227,30 @@ class FixedEnglishBot:
             message = "📊 У вас пока нет статистики. Начните учить слова с /learn"
         
         self.send_message(chat_id, message)
+    
+    def handle_help(self, chat_id, user_id):
+        help_text = """
+❓ <b>Помощь по боту</b>
+
+<b>Основные команды:</b>
+🎓 Учить слова - начать обучение словам
+📊 Статистика - посмотреть ваш прогресс
+➕ Добавить слово - добавить новое слово
+
+<b>Формат добавления слов:</b>
+<code>русское слово - английское слово</code>
+Например: <code>яблоко - apple</code>
+
+<b>Обучение:</b>
+Нажимайте на кнопки с вариантами ответов или пишите перевод слова.
+
+<b>Текстовые команды:</b>
+/start - перезапустить бота
+/learn - начать обучение
+/add_word - добавить слово
+/stats - статистика
+        """
+        self.send_message(chat_id, help_text)
 
 def process_update(bot, update):
     if "message" in update:
@@ -227,14 +263,16 @@ def process_update(bot, update):
             
             if text == "/start":
                 bot.handle_start(chat_id, user_id)
-            elif text == "/learn":
+            elif text == "/learn" or text == "🎓 Учить слова":
                 bot.handle_learn(chat_id, user_id)
-            elif text == "/add_word":
+            elif text == "/add_word" or text == "➕ Добавить слово":
                 # Устанавливаем состояние "добавление слова"
                 bot.user_adding_word[user_id] = True
                 bot.handle_add_word(chat_id, user_id)
-            elif text == "/stats":
+            elif text == "/stats" or text == "📊 Статистика":
                 bot.handle_stats(chat_id, user_id)
+            elif text == "❓ Помощь":
+                bot.handle_help(chat_id, user_id)
             else:
                 # ПРОВЕРЯЕМ: если пользователь добавляет слово
                 if user_id in bot.user_adding_word and bot.user_adding_word[user_id]:
@@ -243,6 +281,9 @@ def process_update(bot, update):
                     bot.send_message(chat_id, response)
                     # Сбрасываем состояние добавления слова
                     bot.user_adding_word[user_id] = False
+                    # Показываем главное меню после добавления слова
+                    menu = bot.create_main_menu()
+                    bot.send_message(chat_id, "Что дальше?", menu)
                 # Если есть активный вопрос И мы НЕ добавляем слово
                 elif user_id in bot.user_questions:
                     question_data = bot.user_questions[user_id]
@@ -258,7 +299,12 @@ def process_update(bot, update):
                 else:
                     # Если нет активного вопроса и не добавляем слово
                     success, response = bot.add_user_word(user_id, text)
-                    bot.send_message(chat_id, response)
+                    if success:
+                        # Показываем меню после успешного добавления слова
+                        menu = bot.create_main_menu()
+                        bot.send_message(chat_id, "Что дальше?", menu)
+                    else:
+                        bot.send_message(chat_id, response)
     
     elif "callback_query" in update:
         callback = update["callback_query"]
@@ -310,4 +356,3 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ Ошибка: {e}")
             time.sleep(5)
-
