@@ -104,7 +104,7 @@ class FixedEnglishBot:
     
     def handle_start(self, chat_id, user_id):
         welcome_text = """
-🤖 <b>Добро пожаловать в MyInglishBot!</b>
+🤖 <b>Добро пожаловать в MyEnglishBot!</b>
 
 Я помогу вам учить английские слова!
 
@@ -310,3 +310,4 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ Ошибка: {e}")
             time.sleep(5)
+
