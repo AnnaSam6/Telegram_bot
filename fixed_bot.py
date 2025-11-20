@@ -496,24 +496,59 @@ def process_update(bot, update):
 if __name__ == "__main__":
     TOKEN = "8592084875:AAFBKu2uXiobygwkSjgfVv8DaFymcISTQp0"
     
+    # Очистка webhook
+    try:
+        clear_url = f"https://api.telegram.org/bot{TOKEN}/deleteWebhook?drop_pending_updates=true"
+        urllib.request.urlopen(clear_url)
+        print("✅ Webhook очищен")
+    except:
+        print("⚠️ Webhook не очищен, но продолжаем...")
+    
     bot = FixedEnglishBot(TOKEN)
     print("🤖 Улучшенный MyEnglishBot запущен...")
-    print("📊 Функции: кэширование, удаление слов, статистика, серии правильных ответов")
     
     last_update_id = 0
+    error_count = 0
+    
     while True:
         try:
-            url = f"https://api.telegram.org/bot{TOKEN}/getUpdates?offset={last_update_id+1}&timeout=60"
-            with urllib.request.urlopen(url) as response:
+            # Увеличиваем timeout и добавляем параметры
+            url = f"https://api.telegram.org/bot{TOKEN}/getUpdates?offset={last_update_id+1}&timeout=30&limit=100"
+            with urllib.request.urlopen(url, timeout=35) as response:
                 data = json.loads(response.read().decode())
             
-            if data["ok"] and data["result"]:
-                for update in data["result"]:
-                    process_update(bot, update)
-                    last_update_id = update["update_id"]
+            if data["ok"]:
+                if data["result"]:
+                    for update in data["result"]:
+                        process_update(bot, update)
+                        last_update_id = update["update_id"]
+                    error_count = 0  # Сбрасываем счетчик ошибок при успехе
+                else:
+                    # Нет новых сообщений - это нормально
+                    pass
+            else:
+                print(f"⚠️ Telegram API error: {data}")
+                error_count += 1
             
-            time.sleep(0.5)
+            # Если много ошибок подряд - увеличиваем паузу
+            sleep_time = 0.1 if error_count == 0 else min(error_count * 5, 30)
+            time.sleep(sleep_time)
+            
+        except urllib.error.HTTPError as e:
+            if e.code == 409:
+                print("🔧 Конфликт webhook - очищаем...")
+                try:
+                    clear_url = f"https://api.telegram.org/bot{TOKEN}/deleteWebhook"
+                    urllib.request.urlopen(clear_url)
+                    print("✅ Webhook очищен")
+                except:
+                    pass
+            else:
+                print(f"❌ HTTP Error {e.code}: {e}")
+            error_count += 1
+            time.sleep(5)
             
         except Exception as e:
             print(f"❌ Ошибка в основном цикле: {e}")
+            error_count += 1
             time.sleep(5)
