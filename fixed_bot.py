@@ -3,6 +3,25 @@ import json
 import random
 import time
 import os
+import threading
+
+class MessageTracker:
+    def __init__(self):
+        self.processed_updates = set()
+        self.lock = threading.Lock()
+    
+    def is_processed(self, update_id):
+        with self.lock:
+            return update_id in self.processed_updates
+    
+    def mark_processed(self, update_id):
+        with self.lock:
+            self.processed_updates.add(update_id)
+            # Очищаем старые ID чтобы не копить слишком много
+            if len(self.processed_updates) > 1000:
+                self.processed_updates = set(list(self.processed_updates)[-500:])
+
+message_tracker = MessageTracker()
 
 class FixedEnglishBot:
     def __init__(self, token):
@@ -159,7 +178,7 @@ class FixedEnglishBot:
         
         if user_answer == correct_answer:
             stats["correct_answers"] += 1
-            message = f"✅ <b>Правильно!</b> Отличная работа!\nСлово переводится как: <b>{correct_answer}</b>"
+            message = f"✅ <b>Правильно!</b> Отличная работа!\nСлово переtranslates как: <b>{correct_answer}</b>"
         else:
             message = f"❌ <b>Неправильно.</b> Правильный ответ: <b>{correct_answer}</b>"
         
@@ -253,6 +272,16 @@ class FixedEnglishBot:
         self.send_message(chat_id, help_text)
 
 def process_update(bot, update):
+    update_id = update.get("update_id")
+    
+    # Проверяем не обрабатывали ли уже этот update
+    if message_tracker.is_processed(update_id):
+        print(f"⏩ Пропущен дубликат update_id: {update_id}")
+        return
+    
+    # Помечаем как обработанный
+    message_tracker.mark_processed(update_id)
+    
     if "message" in update:
         message = update["message"]
         chat_id = message["chat"]["id"]
