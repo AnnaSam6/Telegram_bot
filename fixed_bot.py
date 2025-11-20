@@ -1,3 +1,27 @@
+# === КОД ДЛЯ RENDER === 
+from flask import Flask
+import threading
+
+# Создаем Flask приложение для Render
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "🤖 MyEnglishBot is running! Telegram: @MyInglishbot"
+
+@app.route('/health')
+def health():
+    return "OK"
+
+def run_web():
+    app.run(host='0.0.0.0', port=3000)
+
+# Запускаем Flask в отдельном потоке
+print("🚀 Starting Flask server for Render...")
+web_thread = threading.Thread(target=run_web, daemon=True)
+web_thread.start()
+print("✅ Flask server started in background")
+# === КОНЕЦ КОДА ДЛЯ RENDER === 
 import urllib.request
 import json
 import random
@@ -552,3 +576,4 @@ if __name__ == "__main__":
             print(f"❌ Ошибка в основном цикле: {e}")
             error_count += 1
             time.sleep(5)
+
