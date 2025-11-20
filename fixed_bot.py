@@ -34,9 +34,10 @@ class MessageTracker:
     def __init__(self):
         self.processed_updates = set()
         self.lock = threading.Lock()
-        # ДОБАВЛЯЕМ ЗАЩИТУ ОТ ДУБЛЕЙ
-        self.last_update_time = {}
-        self.message_cooldown = 2  # секунды между сообщениями одного пользователя
+        # Улучшенная защита от дублей
+        self.user_last_action = {}
+        self.last_callback_data = {}
+        self.cooldown = 1.5  # секунды
     
     def is_processed(self, update_id):
         with self.lock:
@@ -45,19 +46,34 @@ class MessageTracker:
     def mark_processed(self, update_id):
         with self.lock:
             self.processed_updates.add(update_id)
-            # Очищаем старые ID чтобы не копить слишком много
             if len(self.processed_updates) > 1000:
                 self.processed_updates = set(list(self.processed_updates)[-500:])
     
-    # ДОБАВЛЯЕМ ФУНКЦИЮ ДЛЯ ЗАЩИТЫ ОТ ДУБЛЕЙ
-    def can_process_user(self, user_id):
+    def can_process_user(self, user_id, action_type="message"):
         current_time = time.time()
         with self.lock:
-            if user_id in self.last_update_time:
-                if current_time - self.last_update_time[user_id] < self.message_cooldown:
+            user_key = f"{user_id}_{action_type}"
+            
+            if user_key in self.user_last_action:
+                time_diff = current_time - self.user_last_action[user_key]
+                if time_diff < self.cooldown:
                     return False
-            self.last_update_time[user_id] = current_time
+            
+            self.user_last_action[user_key] = current_time
             return True
+    
+    def is_duplicate_callback(self, user_id, callback_data):
+        current_time = time.time()
+        with self.lock:
+            user_key = f"{user_id}_callback"
+            
+            if user_key in self.last_callback_data:
+                last_data, last_time = self.last_callback_data[user_key]
+                if last_data == callback_data and (current_time - last_time) < 3:
+                    return True
+            
+            self.last_callback_data[user_key] = (callback_data, current_time)
+            return False
 
 message_tracker = MessageTracker()
 
@@ -438,18 +454,7 @@ class FixedEnglishBot:
 
 def process_update(bot, update):
     # Добавляем задержку для защиты от дублирования
-    time.sleep(0.1)
-    
-    # ДОБАВЛЯЕМ ЗАЩИТУ ОТ ДУБЛЕЙ ПОЛЬЗОВАТЕЛЕЙ
-    user_id = None
-    if "message" in update:
-        user_id = update["message"]["from"]["id"]
-    elif "callback_query" in update:
-        user_id = update["callback_query"]["from"]["id"]
-    
-    if user_id and not message_tracker.can_process_user(user_id):
-        print(f"⏩ Пропущено быстрое сообщение от пользователя {user_id} (защита от дублей)")
-        return
+    time.sleep(0.2)
     
     update_id = update.get("update_id")
     
@@ -467,8 +472,14 @@ def process_update(bot, update):
             chat_id = message["chat"]["id"]
             user_id = message["from"]["id"]
             
+            # ЗАЩИТА ОТ ДУБЛЕЙ - проверяем можно ли обрабатывать пользователя
+            if not message_tracker.can_process_user(user_id, "message"):
+                print(f"⏩ Пропущено быстрое сообщение от пользователя {user_id}")
+                return
+            
             if "text" in message:
                 text = message["text"]
+                print(f"📨 Получено сообщение от {user_id}: {text}")
                 
                 if text == "/start":
                     bot.handle_start(chat_id, user_id)
@@ -508,6 +519,7 @@ def process_update(bot, update):
                         correct_answer = question_data["correct_answer"]
                         
                         print(f"🔔 Получен текстовый ответ от {user_id}: {text}")
+                        # УДАЛЯЕМ вопрос ДО обработки ответа
                         del bot.user_questions[user_id]
                         bot.handle_answer(chat_id, user_id, text, correct_answer)
                     else:
@@ -525,13 +537,23 @@ def process_update(bot, update):
             user_id = callback["from"]["id"]
             user_answer = callback["data"]
             
-            print(f"🔔 Получен ответ от {user_id}: {user_answer}")
+            print(f"🔔 Получен callback от {user_id}: {user_answer}")
+            
+            # ЗАЩИТА ОТ ДУБЛЕЙ ДЛЯ CALLBACK
+            if message_tracker.is_duplicate_callback(user_id, user_answer):
+                print(f"⏩ Пропущен дубликат callback от {user_id}: {user_answer}")
+                return
+            
+            if not message_tracker.can_process_user(user_id, "callback"):
+                print(f"⏩ Пропущен быстрый callback от {user_id}")
+                return
             
             if user_id in bot.user_questions:
                 question_data = bot.user_questions[user_id]
                 correct_answer = question_data["correct_answer"]
                 
                 print(f"🔍 Проверяем: {question_data['russian_word']} -> {correct_answer}")
+                # УДАЛЯЕМ вопрос ДО обработки ответа - это важно!
                 del bot.user_questions[user_id]
                 bot.handle_answer(chat_id, user_id, user_answer, correct_answer)
             else:
