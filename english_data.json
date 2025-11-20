@@ -1,0 +1,21 @@
+{
+  "common_words": {
+    "красный": "red",
+    "синий": "blue",
+    "зеленый": "green",
+    "я": "I",
+    "ты": "you",
+    "он": "he",
+    "она": "she",
+    "дом": "house",
+    "кот": "cat",
+    "собака": "dog"
+  },
+  "user_words": {},
+  "user_stats": {
+    "1045252171": {
+      "correct_answers": 11,
+      "total_answers": 11
+    }
+  }
+}
