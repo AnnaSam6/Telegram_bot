@@ -1,6 +1,8 @@
 # === КОД ДЛЯ RENDER === 
 from flask import Flask
 import threading
+import requests
+import time
 
 # Создаем Flask приложение для Render
 app = Flask(__name__)
@@ -16,18 +18,35 @@ def health():
 def run_web():
     app.run(host='0.0.0.0', port=3000)
 
+# Функция для поддержания активности (РЕШАЕТ ПРОБЛЕМУ "ЗАСЫПАНИЯ")
+def keep_alive():
+    while True:
+        try:
+            # Будим наш же сервис каждые 4 минуты
+            requests.get('https://myenglishbot-sjwc.onrender.com', timeout=10)
+            print("✅ Keep-alive: сервис активен")
+        except Exception as e:
+            print(f"⚠️ Keep-alive ошибка: {e}")
+        time.sleep(240)  # 4 минуты
+
 # Запускаем Flask в отдельном потоке
 print("🚀 Starting Flask server for Render...")
 web_thread = threading.Thread(target=run_web, daemon=True)
 web_thread.start()
+
+# Запускаем авто-пробуждение
+print("🔧 Starting keep-alive service...")
+keep_alive_thread = threading.Thread(target=keep_alive, daemon=True)
+keep_alive_thread.start()
+
 print("✅ Flask server started in background")
+print("✅ Keep-alive service started")
 # === КОНЕЦ КОДА ДЛЯ RENDER === 
+
 import urllib.request
 import json
 import random
-import time
 import os
-import threading
 from datetime import datetime
 
 class MessageTracker:
@@ -90,6 +109,8 @@ class FixedEnglishBot:
         self.user_words_cache = {}
         # Время последней активности
         self.last_activity = {}
+        # Счетчик ошибок для самовосстановления
+        self.error_count = 0
     
     def load_data(self):
         if os.path.exists(self.data_file):
@@ -111,8 +132,11 @@ class FixedEnglishBot:
         print("✅ Данные загружены")
     
     def save_data(self):
-        with open(self.data_file, 'w', encoding='utf-8') as f:
-            json.dump(self.data, f, ensure_ascii=False, indent=2)
+        try:
+            with open(self.data_file, 'w', encoding='utf-8') as f:
+                json.dump(self.data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"❌ Ошибка сохранения данных: {e}")
     
     def send_message(self, chat_id, text, reply_markup=None):
         try:
@@ -129,11 +153,20 @@ class FixedEnglishBot:
             data_bytes = json.dumps(data).encode('utf-8')
             req = urllib.request.Request(url, data=data_bytes)
             req.add_header('Content-Type', 'application/json')
+            req.add_header('User-Agent', 'Mozilla/5.0')
             
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(req, timeout=10) as response:
+                self.error_count = 0  # Сбрасываем счетчик ошибок при успехе
                 return json.loads(response.read().decode())
         except Exception as e:
-            print(f"❌ Ошибка отправки: {e}")
+            self.error_count += 1
+            print(f"❌ Ошибка отправки ({self.error_count}): {e}")
+            
+            # Если много ошибок подряд - делаем паузу
+            if self.error_count > 5:
+                print("⚠️ Много ошибок, делаем паузу 10 секунд...")
+                time.sleep(10)
+                
             return None
     
     def get_user_words(self, user_id):
@@ -565,6 +598,11 @@ def process_update(bot, update):
 
 if __name__ == "__main__":
     TOKEN = "8592084875:AAFBKu2uXiobygwkSjgfVv8DaFymcISTQp0"
+    
+    print("🤖 Запуск улучшенного MyEnglishBot...")
+    print("✅ Авто-пробуждение активировано")
+    print("✅ Защита от дублей активирована")
+    print("✅ Система самовосстановления активна")
     
     # Очистка webhook
     try:
