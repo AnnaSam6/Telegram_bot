@@ -11,6 +11,8 @@ class FixedEnglishBot:
         self.load_data()
         # Храним последние вопросы для каждого пользователя
         self.user_questions = {}
+        # Храним состояние добавления слов
+        self.user_adding_word = {}
     
     def load_data(self):
         if os.path.exists(self.data_file):
@@ -228,24 +230,33 @@ def process_update(bot, update):
             elif text == "/learn":
                 bot.handle_learn(chat_id, user_id)
             elif text == "/add_word":
+                # Устанавливаем состояние "добавление слова"
+                bot.user_adding_word[user_id] = True
                 bot.handle_add_word(chat_id, user_id)
             elif text == "/stats":
                 bot.handle_stats(chat_id, user_id)
             else:
-                # Проверяем, не является ли сообщение ответом на активный вопрос
-                if user_id in bot.user_questions:
+                # ПРОВЕРЯЕМ: если пользователь добавляет слово
+                if user_id in bot.user_adding_word and bot.user_adding_word[user_id]:
+                    # Это добавление слова, а не ответ на вопрос
+                    success, response = bot.add_user_word(user_id, text)
+                    bot.send_message(chat_id, response)
+                    # Сбрасываем состояние добавления слова
+                    bot.user_adding_word[user_id] = False
+                # Если есть активный вопрос И мы НЕ добавляем слово
+                elif user_id in bot.user_questions:
                     question_data = bot.user_questions[user_id]
                     correct_answer = question_data["correct_answer"]
                     
                     print(f"🔔 Получен текстовый ответ: {text} от пользователя {user_id}")
                     print(f"🔍 Проверяем: {question_data['russian_word']} -> {correct_answer}, ответ: {text}")
                     
-                    # Удаляем вопрос ПЕРЕД обработкой, чтобы избежать конфликтов
+                    # Удаляем вопрос ПЕРЕД обработкой
                     del bot.user_questions[user_id]
                     
                     bot.handle_answer(chat_id, user_id, text, correct_answer)
                 else:
-                    # Если нет активного вопроса, пробуем добавить слово
+                    # Если нет активного вопроса и не добавляем слово
                     success, response = bot.add_user_word(user_id, text)
                     bot.send_message(chat_id, response)
     
