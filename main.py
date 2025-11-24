@@ -11,7 +11,7 @@ from services.data_repository import DataRepository
 print('Start telegram bot...')
 
 state_storage = StateMemoryStorage()
-token_bot = os.getenv('TELEGRAM_TOKEN', '')  # Токен из .env
+token_bot = '8592084875:AAFBKu2uXiobygwkSjgfVv8DaFymcISTQp0'
 bot = TeleBot(token_bot, state_storage=state_storage)
 
 # Инициализация репозитория для работы с БД
@@ -194,3 +194,4 @@ def message_reply(message):
 
 bot.add_custom_filter(custom_filters.StateFilter(bot))
 bot.infinity_polling(skip_pending=True)
+
