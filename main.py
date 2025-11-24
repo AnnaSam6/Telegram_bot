@@ -1,10 +1,10 @@
-import random
 import os
+import random
+
 from telebot import types, TeleBot, custom_filters
 from telebot.storage import StateMemoryStorage
 from telebot.handler_backends import State, StatesGroup
 
-# Импорты для разделения ответственности
 from services.data_repository import DataRepository
 
 
@@ -83,7 +83,9 @@ def create_cards(message):
         target_word = word_data[1]  # английское слово
         translate = word_data[2]    # перевод
         # Получаем варианты из БД
-        other_words_data = data_repo.get_word_options(word_data[0], 1, 4)
+        other_words_data = data_repo.get_word_options(
+            word_data[0], 1, 4
+        )
         others = [word[0] for word in other_words_data]
         word_id = word_data[0]  # сохраняем ID слова
     else:
@@ -100,7 +102,9 @@ def create_cards(message):
     target_word_btn = types.KeyboardButton(target_word)
     buttons.append(target_word_btn)
     
-    other_words_btns = [types.KeyboardButton(word) for word in others]
+    other_words_btns = [
+        types.KeyboardButton(word) for word in others
+    ]
     buttons.extend(other_words_btns)
     random.shuffle(buttons)
     
@@ -112,10 +116,20 @@ def create_cards(message):
     markup.add(*buttons)
 
     greeting = f"Выбери перевод слова:\n🇷🇺 {translate}"
-    bot.send_message(message.chat.id, greeting, reply_markup=markup)
-    bot.set_state(message.from_user.id, MyStates.target_word, message.chat.id)
+    bot.send_message(
+        message.chat.id, 
+        greeting, 
+        reply_markup=markup
+    )
+    bot.set_state(
+        message.from_user.id, 
+        MyStates.target_word, 
+        message.chat.id
+    )
     
-    with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
+    with bot.retrieve_data(
+        message.from_user.id, message.chat.id
+    ) as data:
         data['target_word'] = target_word
         data['translate_word'] = translate
         data['other_words'] = others
@@ -131,7 +145,9 @@ def next_cards(message):
 @bot.message_handler(func=lambda message: message.text == Command.DELETE_WORD)
 def delete_word(message):
     """Удалить слово из изучения."""
-    with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
+    with bot.retrieve_data(
+        message.from_user.id, message.chat.id
+    ) as data:
         print(f"Delete word from DB: {data['target_word']}")
         # TODO: реализовать удаление из БД
 
@@ -147,7 +163,7 @@ def add_word(message):
 
 @bot.message_handler(commands=['restart'])
 def restart_bot(message):
-    """Перезапустить бота"""
+    """Перезапустить бота."""
     user_id = message.from_user.id
     
     # Сбрасываем состояние пользователя
@@ -172,7 +188,9 @@ def message_reply(message):
     text = message.text
     markup = types.ReplyKeyboardMarkup(row_width=2)
     
-    with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
+    with bot.retrieve_data(
+        message.from_user.id, message.chat.id
+    ) as data:
         target_word = data['target_word']
         
         if text == target_word:
@@ -204,10 +222,13 @@ def message_reply(message):
                 if btn.text == text:
                     btn.text = text + '❌'
                     break
-            hint = show_hint(
-                "Допущена ошибка!",
-                f"Попробуй ещё раз вспомнить слово 🇷🇺{data['translate_word']}"
+            
+            hint_text = "Допущена ошибка!"
+            hint_desc = (
+                f"Попробуй ещё раз вспомнить слово "
+                f"🇷🇺{data['translate_word']}"
             )
+            hint = show_hint(hint_text, hint_desc)
     
     markup.add(*buttons)
     bot.send_message(message.chat.id, hint, reply_markup=markup)
