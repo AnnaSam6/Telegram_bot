@@ -1,16 +1,37 @@
+"""
+Сервис для работы с Telegram Bot API.
+"""
 from telebot import types
 
+
 class BotService:
-    def create_main_menu(self):
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        btn1 = types.KeyboardButton('📚 Учить слова')
-        btn2 = types.KeyboardButton('📊 Статистика')
-        markup.add(btn1, btn2)
+    """Сервис для создания клавиатур и меню бота."""
+    
+    def create_main_menu(self) -> types.ReplyKeyboardMarkup:
+        """Создать главное меню."""
+        markup = types.ReplyKeyboardMarkup(
+            row_width=2, 
+            resize_keyboard=True
+        )
+        
+        words_btn = types.KeyboardButton('📚 Учить слова')
+        stats_btn = types.KeyboardButton('📊 Статистика')
+        markup.add(words_btn, stats_btn)
+        
         return markup
 
-    def create_word_options_keyboard(self, options):
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    def create_learning_keyboard(self, options: list) -> types.ReplyKeyboardMarkup:
+        """Создать клавиатуру для обучения."""
+        markup = types.ReplyKeyboardMarkup(
+            row_width=2, 
+            resize_keyboard=True
+        )
+        
         for option in options:
             markup.add(types.KeyboardButton(option))
-        markup.add(types.KeyboardButton('🏠 Главное меню'))
+        
+        next_btn = types.KeyboardButton('➡️ Дальше')
+        main_btn = types.KeyboardButton('🏠 Главное меню')
+        markup.add(next_btn, main_btn)
+        
         return markup
