@@ -1,4 +1,4 @@
-# Создайте services/bot_service.py
+
 from telebot import types
 
 class BotService:
