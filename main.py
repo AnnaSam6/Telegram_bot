@@ -145,6 +145,27 @@ def add_word(message):
     # TODO: реализовать добавление в БД
 
 
+@bot.message_handler(commands=['restart'])
+def restart_bot(message):
+    """Перезапустить бота"""
+    user_id = message.from_user.id
+    
+    # Сбрасываем состояние пользователя
+    if user_id in known_users:
+        known_users.remove(user_id)
+    if user_id in userStep:
+        userStep[user_id] = 0
+    
+    bot.send_message(
+        message.chat.id,
+        "🔄 Бот перезапущен! Начнем заново.",
+        reply_markup=types.ReplyKeyboardRemove()
+    )
+    
+    # Запускаем начальное состояние
+    create_cards(message)
+
+
 @bot.message_handler(func=lambda message: True, content_types=['text'])
 def message_reply(message):
     """Обработать ответ пользователя на слово."""
@@ -194,4 +215,5 @@ def message_reply(message):
 
 bot.add_custom_filter(custom_filters.StateFilter(bot))
 bot.infinity_polling(skip_pending=True)
+
 
