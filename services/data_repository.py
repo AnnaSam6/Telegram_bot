@@ -5,12 +5,10 @@ class DataRepository:
         connection = db.connect()
         cursor = connection.cursor()
         
-        # Проверяем есть ли пользователь
         cursor.execute("SELECT * FROM users WHERE user_id = %s", (user_id,))
         user = cursor.fetchone()
         
         if not user:
-            # Создаем нового пользователя
             cursor.execute(
                 "INSERT INTO users (user_id, username, first_name) VALUES (%s, %s, %s)",
                 (user_id, username, first_name)
@@ -66,3 +64,29 @@ class DataRepository:
         cursor.close()
         connection.close()
         return word
+
+    def update_word_progress(self, user_id, word_id, is_correct):
+        """Обновить прогресс изучения слова"""
+        connection = db.connect()
+        cursor = connection.cursor()
+        
+        if is_correct:
+            cursor.execute(
+                """INSERT INTO user_words (user_id, word_id, correct_answers) 
+                VALUES (%s, %s, 1) 
+                ON CONFLICT (user_id, word_id) 
+                DO UPDATE SET correct_answers = user_words.correct_answers + 1""",
+                (user_id, word_id)
+            )
+        else:
+            cursor.execute(
+                """INSERT INTO user_words (user_id, word_id, wrong_answers) 
+                VALUES (%s, %s, 1) 
+                ON CONFLICT (user_id, word_id) 
+                DO UPDATE SET wrong_answers = user_words.wrong_answers + 1""",
+                (user_id, word_id)
+            )
+        
+        connection.commit()
+        cursor.close()
+        connection.close()
