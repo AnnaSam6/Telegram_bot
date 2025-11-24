@@ -21,6 +21,38 @@ class DataRepository:
         connection.close()
         return user
 
+    def get_word_options(self, exclude_word_id, level, limit=3):
+    """Получить варианты ответов для слов"""
+    connection = db.connect()
+    cursor = connection.cursor()
+    
+    cursor.execute(
+        """SELECT word FROM words 
+        WHERE level = %s AND id != %s 
+        ORDER BY RANDOM() LIMIT %s""",
+        (level, exclude_word_id, limit)
+    )
+    options = [row[0] for row in cursor.fetchall()]
+    
+    cursor.close()
+    connection.close()
+    return options
+
+def get_user_level(self, user_id):
+    """Получить уровень пользователя"""
+    connection = db.connect()
+    cursor = connection.cursor()
+    
+    cursor.execute(
+        "SELECT level FROM users WHERE user_id = %s",
+        (user_id,)
+    )
+    result = cursor.fetchone()
+    
+    cursor.close()
+    connection.close()
+    return result[0] if result else 1
+
     def get_random_word(self, level=1):
         connection = db.connect()
         cursor = connection.cursor()
