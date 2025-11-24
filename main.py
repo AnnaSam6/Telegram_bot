@@ -13,6 +13,14 @@ bot = TeleBot(token_bot, state_storage=state_storage)
 user_handlers = UserHandlers(bot)
 word_handlers = WordHandlers(bot)
 
+# ДОБАВЬТЕ ЭТО В main.py после существующих обработчиков:
+
+@bot.message_handler(func=lambda message: True)
+def handle_all_messages(message):
+    """Обработчик всех текстовых сообщений"""
+    # Нужно определить, в каком режиме пользователь и обработать ответ
+    word_handlers.handle_word_answer(message)
+    
 # Регистрируем команды
 @bot.message_handler(commands=['start'])
 def start_command(message):
@@ -31,3 +39,4 @@ if __name__ == '__main__':
     print('Бот запущен...')
     bot.add_custom_filter(custom_filters.StateFilter(bot))
     bot.infinity_polling()
+
