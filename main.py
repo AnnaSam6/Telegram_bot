@@ -4,20 +4,18 @@ from telebot import types, TeleBot, custom_filters
 from telebot.storage import StateMemoryStorage
 from telebot.handler_backends import State, StatesGroup
 
-# Импорты сервисов для разделения ответственности
+# Импорты для разделения ответственности
 from services.data_repository import DataRepository
-from services.learning_service import LearningService
 
 
 print('Start telegram bot...')
 
 state_storage = StateMemoryStorage()
-token_bot = os.getenv('TELEGRAM_TOKEN')  # Токен из .env
+token_bot = os.getenv('TELEGRAM_TOKEN', '')  # Токен из .env
 bot = TeleBot(token_bot, state_storage=state_storage)
 
-# Инициализация сервисов
+# Инициализация репозитория для работы с БД
 data_repo = DataRepository()
-learning_service = LearningService()
 
 known_users = []
 userStep = {}
@@ -25,17 +23,17 @@ buttons = []
 
 
 def show_hint(*lines):
-    """Показать подсказку."""
+    """Показать подсказку пользователю."""
     return '\n'.join(lines)
 
 
 def show_target(data):
-    """Показать правильный ответ."""
+    """Показать правильный перевод."""
     return f"{data['target_word']} -> {data['translate_word']}"
 
 
 class Command:
-    """Команды бота."""
+    """Класс для хранения команд бота."""
     
     ADD_WORD = 'Добавить слово ➕'
     DELETE_WORD = 'Удалить слово🔙'
@@ -43,7 +41,7 @@ class Command:
 
 
 class MyStates(StatesGroup):
-    """Состояния бота."""
+    """Группа состояний бота."""
     
     target_word = State()
     translate_word = State()
@@ -51,7 +49,7 @@ class MyStates(StatesGroup):
 
 
 def get_user_step(uid):
-    """Получить шаг пользователя."""
+    """Получить текущий шаг пользователя."""
     if uid in userStep:
         return userStep[uid]
     else:
@@ -63,35 +61,37 @@ def get_user_step(uid):
 
 @bot.message_handler(commands=['cards', 'start'])
 def create_cards(message):
-    """Создать карточки для изучения слов."""
+    """Создать карточку для изучения слов."""
     cid = message.chat.id
     if cid not in known_users:
         known_users.append(cid)
         userStep[cid] = 0
         bot.send_message(cid, "Hello, stranger, let study English...")
     
-    # СОЗДАЕМ ИЛИ ПОЛУЧАЕМ ПОЛЬЗОВАТЕЛЯ ИЗ БД
+    # СОЗДАЕМ/ПОЛУЧАЕМ ПОЛЬЗОВАТЕЛЯ В БД
     user = data_repo.get_or_create_user(
         message.from_user.id,
         message.from_user.username or "user",
         message.from_user.first_name or "User"
     )
     
-    # ПОЛУЧАЕМ СЛОВО ИЗ БД, А НЕ ЖЕСТКО ЗАКОДИРОВАННОЕ
-    level = data_repo.get_user_level(message.from_user.id)
-    word_data = data_repo.get_random_word(level)
+    # ПОЛУЧАЕМ СЛОВО ИЗ БД
+    word_data = data_repo.get_random_word(1)  # уровень 1 для начала
     
-    if not word_data:
-        bot.send_message(message.chat.id, "No words available in database")
-        return
-    
-    # word_data[0] - id, word_data[1] - word, word_data[2] - translation
-    target_word = word_data[1]  # английское слово из БД
-    translate = word_data[2]    # перевод из БД
-    
-    # ПОЛУЧАЕМ ВАРИАНТЫ ОТВЕТОВ ИЗ БД
-    other_words_data = data_repo.get_word_options(word_data[0], level, 4)
-    others = [word[0] for word in other_words_data]  # извлекаем слова
+    if word_data:
+        # Используем данные из БД
+        target_word = word_data[1]  # английское слово
+        translate = word_data[2]    # перевод
+        # Получаем варианты из БД
+        other_words_data = data_repo.get_word_options(word_data[0], 1, 4)
+        others = [word[0] for word in other_words_data]
+        word_id = word_data[0]  # сохраняем ID слова
+    else:
+        # Fallback - если БД пустая
+        target_word = 'Peace'
+        translate = 'Мир'
+        others = ['Green', 'White', 'Hello', 'Car']
+        word_id = None
 
     markup = types.ReplyKeyboardMarkup(row_width=2)
 
@@ -119,7 +119,7 @@ def create_cards(message):
         data['target_word'] = target_word
         data['translate_word'] = translate
         data['other_words'] = others
-        data['word_id'] = word_data[0]  # сохраняем ID слова для прогресса
+        data['word_id'] = word_id  # для обновления прогресса
 
 
 @bot.message_handler(func=lambda message: message.text == Command.NEXT)
@@ -132,20 +132,22 @@ def next_cards(message):
 def delete_word(message):
     """Удалить слово из изучения."""
     with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
-        print(f"Delete word: {data['target_word']}")  # TODO: удалить из БД
+        print(f"Delete word from DB: {data['target_word']}")
+        # TODO: реализовать удаление из БД
 
 
 @bot.message_handler(func=lambda message: message.text == Command.ADD_WORD)
 def add_word(message):
-    """Добавить новое слово."""
+    """Добавить новое слово в базу."""
     cid = message.chat.id
     userStep[cid] = 1
-    print(f"Add word: {message.text}")  # TODO: сохранить в БД
+    print(f"Add word to DB: {message.text}")
+    # TODO: реализовать добавление в БД
 
 
 @bot.message_handler(func=lambda message: True, content_types=['text'])
 def message_reply(message):
-    """Обработать ответ пользователя."""
+    """Обработать ответ пользователя на слово."""
     text = message.text
     markup = types.ReplyKeyboardMarkup(row_width=2)
     
@@ -153,12 +155,13 @@ def message_reply(message):
         target_word = data['target_word']
         
         if text == target_word:
-            # ПРАВИЛЬНЫЙ ОТВЕТ - обновляем прогресс в БД
-            data_repo.update_word_progress(
-                message.from_user.id, 
-                data['word_id'], 
-                True
-            )
+            # ОБНОВЛЯЕМ ПРОГРЕСС В БД
+            if data.get('word_id'):
+                data_repo.update_word_progress(
+                    message.from_user.id,
+                    data['word_id'],
+                    True
+                )
             
             hint = show_target(data)
             hint_text = ["Отлично!❤", hint]
@@ -168,11 +171,11 @@ def message_reply(message):
             buttons.extend([next_btn, add_word_btn, delete_word_btn])
             hint = show_hint(*hint_text)
         else:
-            # НЕПРАВИЛЬНЫЙ ОТВЕТ - обновляем прогресс в БД
-            if 'word_id' in data:
+            # ОБНОВЛЯЕМ ПРОГРЕСС В БД
+            if data.get('word_id'):
                 data_repo.update_word_progress(
-                    message.from_user.id, 
-                    data['word_id'], 
+                    message.from_user.id,
+                    data['word_id'],
                     False
                 )
             
